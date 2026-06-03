@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LETTERBOX :: DESIGN LOG // TERMINAL v1.0</title>
+  <style>
+    /* ============================================================
+       GLOBAL RESET & BASE
+       ============================================================ */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg:        #0a0e0a;
+      --surface:   #111711;
+      --border:    #1f2b1f;
+      --text:      #b3f0b0;
+      --text-dim:  #4a6a4a;
+      --accent:    #00ff41;
+      --accent2:   #0af;
+      --glow:      0 0 6px rgba(0,255,65,0.3);
+      --font:      'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      font-size: 15px;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ============================================================
+       SCAN-LINE OVERLAY
+       ============================================================ */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,255,65,0.015) 2px,
+        rgba(0,255,65,0.015) 4px
+      );
+    }
+
+    /* ============================================================
+       SCROLLBAR
+       ============================================================ */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--accent); box-shadow: var(--glow); }
+
+    /* ============================================================
+       TERMINAL HEADER
+       ============================================================ */
+    .terminal-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 32px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      z-index: 1000;
+      font-size: 12px;
+      color: var(--text-dim);
+      user-select: none;
+    }
+    .terminal-bar .dots {
+      display: flex;
+      gap: 6px;
+      margin-right: 16px;
+    }
+    .terminal-bar .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+    }
+    .terminal-bar .dot.r { background: #ff5f56; }
+    .terminal-bar .dot.y { background: #ffbd2e; }
+    .terminal-bar .dot.g { background: #27c93f; }
+    .terminal-bar .title {
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .terminal-bar .title span {
+      color: var(--accent);
+    }
+
+    /* ============================================================
+       HERO
+       ============================================================ */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 80px 24px 48px;
+      position: relative;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center, rgba(0,255,65,0.04) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-size: 11px;
+      padding: 4px 14px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+      opacity: 0.7;
+    }
+    .hero h1 {
+      font-size: clamp(2.4rem, 6vw, 4.8rem);
+      font-weight: 400;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      color: var(--accent);
+      text-shadow: 0 0 20px rgba(0,255,65,0.4);
+      line-height: 1.2;
+    }
+    .hero h1 .cursor {
+      display: inline-block;
+      width: 0.6em;
+      height: 1em;
+      background: var(--accent);
+      margin-left: 4px;
+      vertical-align: text-bottom;
+      animation: blink 1s steps(1) infinite;
+    }
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+    .hero-sub {
+      margin-top: 20px;
+      font-size: 13px;
+      color: var(--text-dim);
+      letter-spacing: 2px;
+      max-width: 520px;
+    }
+    .hero-scroll {
+      margin-top: 48px;
+      animation: float 2s ease-in-out infinite;
+      color: var(--text-dim);
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(8px); }
+    }
+
+    /* ============================================================
+       SECTION COMMON
+       ============================================================ */
+    section {
+      padding: 80px 24px;
+      max-width: 960px;
+      margin: 0 auto;
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+      border-bottom: 1px solid var(--border);
+    }
+    section.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    section:last-of-type {
+      border-bottom: none;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+    .section-number {
+      font-size: 13px;
+      color: var(--accent);
+      opacity: 0.5;
+      letter-spacing: 2px;
+    }
+    .section-header h2 {
+      font-size: 20px;
+      font-weight: 400;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+    .section-header .timeline-dot {
+      width: 8px; height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: var(--glow);
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .section-body {
+      padding-left: 8px;
+      border-left: 2px solid var(--border);
+      padding-bottom: 8px;
+    }
+
+    /* ============================================================
+       CONTENT BLOCKS
+       ============================================================ */
+    .text-block {
+      margin-bottom: 24px;
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.8;
+    }
+    .text-block p {
+      margin-bottom: 12px;
+    }
+    .text-block strong {
+      color: var(--accent);
+      font-weight: 400;
+    }
+    .text-block em {
+      color: var(--accent2);
+      font-style: normal;
+    }
+
+    /* ============================================================
+       IMAGE PLACEHOLDER
+       ============================================================ */
+    .img-container {
+      margin: 28px 0;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      position: relative;
+      overflow: hidden;
+    }
+    .img-container img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .img-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px;
+      min-height: 200px;
+      color: var(--text-dim);
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-align: center;
+      border: 1px dashed var(--border);
+      background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(0,255,65,0.015) 10px,
+        rgba(0,255,65,0.015) 20px
+      );
+    }
+    .img-placeholder::before {
+      content: '▣';
+      font-size: 28px;
+      margin-bottom: 8px;
+      color: var(--border);
+    }
+    .img-caption {
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 1px;
+      padding: 8px 12px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+    .img-caption strong {
+      color: var(--text);
+    }
+
+    /* ============================================================
+       LISTS / TERMINAL OUTPUT
+       ============================================================ */
+    .term-list {
+      list-style: none;
+      margin: 16px 0;
+    }
+    .term-list li {
+      padding: 4px 0 4px 24px;
+      position: relative;
+      font-size: 13px;
+      color: var(--text);
+    }
+    .term-list li::before {
+      content: '>';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      opacity: 0.6;
+    }
+    .term-list li .hl {
+      color: var(--accent);
+    }
+
+    /* ============================================================
+       CODE / COMMAND BLOCKS
+       ============================================================ */
+    .cmd-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 16px 20px;
+      margin: 16px 0;
+      font-size: 13px;
+      color: var(--text-dim);
+      overflow-x: auto;
+    }
+    .cmd-block .prompt {
+      color: var(--accent);
+    }
+    .cmd-block .out {
+      color: var(--text);
+    }
+    .cmd-block .cmt {
+      color: #6a8a6a;
+      font-style: italic;
+    }
+
+    /* ============================================================
+       GRID LAYOUT (for sketch / design gallery)
+       ============================================================ */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 20px 0;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin: 20px 0;
+    }
+    @media (max-width: 640px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    /* ============================================================
+       FOOTER
+       ============================================================ */
+    .footer {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-dim);
+      font-size: 11px;
+      letter-spacing: 2px;
+      border-top: 1px solid var(--border);
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    .footer .cursor-blink {
+      display: inline-block;
+      animation: blink 1s steps(1) infinite;
+      color: var(--accent);
+    }
+
+    /* ============================================================
+       SCROLL INDICATOR (SIDE)
+       ============================================================ */
+    .progress-track {
+      position: fixed;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 500;
+    }
+    .progress-track a {
+      display: block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background 0.3s, box-shadow 0.3s;
+      text-decoration: none;
+    }
+    .progress-track a.active {
+      background: var(--accent);
+      box-shadow: var(--glow);
+    }
+    @media (max-width: 768px) {
+      .progress-track { display: none; }
+    }
+
+    /* ============================================================
+       TYPEWRITER UTILITY
+       ============================================================ */
+    .typewriter {
+      display: inline;
+      border-right: 0.4em solid var(--accent);
+      animation: blink-caret 0.8s step-end infinite;
+    }
+    @keyframes blink-caret {
+      50% { border-color: transparent; }
+    }
+
+    /* ============================================================
+       RESPONSIVE
+       ============================================================ */
+    @media (max-width: 640px) {
+      section { padding: 48px 16px; }
+      .section-header h2 { font-size: 16px; }
+    }
+
+    /* ============================================================
+       IMAGE TRIGGER — clickable badge that opens a window
+       ============================================================ */
+    .img-trigger {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      margin: 24px 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: 13px;
+      color: var(--text-dim);
+      transition: border-color 0.2s, background 0.2s;
+      user-select: none;
+    }
+    .img-trigger:hover {
+      border-color: var(--accent);
+      background: #0f170f;
+    }
+    .img-trigger .trigger-icon {
+      color: var(--accent);
+      font-size: 10px;
+      flex-shrink: 0;
+      transition: transform 0.2s;
+    }
+    .img-trigger:hover .trigger-icon {
+      transform: translateX(3px);
+    }
+    .img-trigger .trigger-label {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .img-trigger .trigger-label strong {
+      color: var(--accent);
+      font-weight: 400;
+    }
+    .img-trigger .trigger-action {
+      font-size: 10px;
+      color: #6a8a6a;
+      letter-spacing: 1px;
+      flex-shrink: 0;
+    }
+    @media (max-width: 640px) {
+      .img-trigger .trigger-action { display: none; }
+    }
+
+    /* ============================================================
+       FLOATING WINDOW SYSTEM — draggable, zoomable popup windows
+       ============================================================ */
+    .window {
+      position: fixed;
+      z-index: 5000;
+      min-width: 280px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: 0 0 0 1px rgba(0,255,65,0.08), 0 8px 32px rgba(0,0,0,0.7);
+      display: none;
+      font-family: var(--font);
+    }
+    .window.active {
+      display: block;
+      animation: winAppear 0.2s ease;
+    }
+    @keyframes winAppear {
+      from { opacity: 0; transform: scale(0.95); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    .window.focused {
+      z-index: 5100;
+      border-color: var(--accent);
+      box-shadow: 0 0 20px rgba(0,255,65,0.15), 0 8px 32px rgba(0,0,0,0.7);
+    }
+
+    .window-header {
+      display: flex;
+      align-items: center;
+      padding: 4px 8px 4px 12px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      cursor: grab;
+      user-select: none;
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      min-height: 28px;
+    }
+    .window-header:active {
+      cursor: grabbing;
+    }
+    .window-header .win-title {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .window-header .win-title .hl {
+      color: var(--accent);
+    }
+    .window-controls {
+      display: flex;
+      gap: 6px;
+      margin-left: 12px;
+      flex-shrink: 0;
+    }
+    .window-controls span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .window-controls span:hover {
+      opacity: 0.7;
+    }
+    .win-close { background: #ff5f56; }
+    .win-zoom  { background: #27c93f; }
+
+    .window-content {
+      overflow: auto;
+      max-height: 70vh;
+      position: relative;
+      background: var(--bg);
+    }
+    .window-content img {
+      display: block;
+      width: 100%;
+      height: auto;
+      cursor: zoom-in;
+    }
+    .window-content img.zoomed {
+      width: auto;
+      max-width: 95vw;
+      max-height: 90vh;
+      cursor: zoom-out;
+    }
+    .window-content .win-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px;
+      min-height: 180px;
+      color: var(--text-dim);
+      font-size: 12px;
+      text-align: center;
+      letter-spacing: 1px;
+      background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(0,255,65,0.015) 10px,
+        rgba(0,255,65,0.015) 20px
+      );
+    }
+    .window-content .win-placeholder::before {
+      content: '▣';
+      font-size: 28px;
+      margin-bottom: 8px;
+      color: var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ============================================================
+     TERMINAL WINDOW CHROME BAR
+     ============================================================ -->
+<div class="terminal-bar">
+  <div class="dots">
+    <span class="dot r"></span>
+    <span class="dot y"></span>
+    <span class="dot g"></span>
+  </div>
+  <div class="title"><span>letterbox</span> :: design-log -- terminal v1.0</div>
+</div>
+
+<!-- ============================================================
+     SIDE PROGRESS DOT NAV
+     ============================================================ -->
+<nav class="progress-track" id="progressTrack" aria-label="Section navigation">
+  <a href="#hero" data-section="hero" class="active"></a>
+  <a href="#planning" data-section="planning"></a>
+  <a href="#sketching" data-section="sketching"></a>
+  <a href="#designing" data-section="designing"></a>
+  <a href="#details" data-section="details"></a>
+  <a href="#revisioning" data-section="revisioning"></a>
+  <a href="#reflection" data-section="reflection"></a>
+</nav>
+
+<!-- ============================================================
+     HERO
+     ============================================================ -->
+<header class="hero" id="hero">
+  <div class="hero-badge">Design Log // v1.0</div>
+  <h1>
+    LETTERBOX<br />
+    <span style="font-size:0.6em;letter-spacing:4px;opacity:0.7;">DESIGN PROCESS</span>
+    <span class="cursor"></span>
+  </h1>
+  <p class="hero-sub">
+    A terminal-style walkthrough of the full design lifecycle — from
+    brainstorming to reflection. Scroll to begin.
+  </p>
+  <div class="hero-scroll">▼ Scroll to explore</div>
+</header>
+
+<!-- ============================================================
+     SECTION 1 :: PLANNING & BRAINSTORMING
+     ============================================================ -->
+<section id="planning">
+  <div class="section-header">
+    <span class="section-number">#001</span>
+    <h2>Planning &amp; Brainstorming</h2>
+    <span class="timeline-dot"></span>
+  </div>
+  <div class="section-body">
+
+      <div class="text-block">
+        <p>
+          <strong>Phase:</strong> Brainstorming &amp; sketching in AutoCAD Fusion 360.
+          The goal was to design a <strong>letterbox</strong> &mdash; a hollow sign
+          or 3D text where you place LED lights inside to make it glow.
+        </p>
+      </div>
+
+    <!-- EDIT BELOW: Replace text between <p> tags to update content -->
+    <div class="cmd-block">
+      <span class="cmt"># brainstorm session — concept sketches</span><br />
+      <span class="prompt">root@letterbox:~$</span> cat &gt; concepts.txt<br />
+      <span class="out">- Concept 1: A cat shape &mdash; too complex, hard to model cleanly<br />
+        - Concept 2: A potted plant &mdash; theme didn't connect well enough<br />
+        - Concept 3: Animal Crossing leaf logo + my name &mdash; clean, iconic, personal<br />
+      </span>
+      <span class="prompt">root@letterbox:~$</span> <span class="out">_</span>
+    </div>
+    <!-- EDIT ABOVE -->
+
+    <div class="text-block">
+      <p>
+        I started by brainstorming a few different ideas. The first was a cat
+        shape, but it was too complex to model cleanly. The second was a potted
+        plant, but the theme didn't feel strong enough. I quickly moved on to
+        my final idea: the iconic leaf logo from <em>Animal Crossing</em>,
+        paired with my name as text. It was simple, recognizable, and personal.
+      </p>
+      <p>
+        A letterbox is basically a hollow sign or 3D text. You put LED lights
+        inside, and the light shines through the letters or shape to make it
+        glow.
+      </p>
+    </div>
+
+    <div class="img-trigger" data-fig="FIG 1.1" data-caption="Early sketch &amp; concept exploration" data-img-src="1" data-placeholder="concept-sketch.jpg">
+      <span class="trigger-icon">▶</span>
+      <span class="trigger-label"><strong>FIG 1.1</strong> &mdash; Early sketch &amp; concept exploration</span>
+      <span class="trigger-action">[open window]</span>
+    </div>
+
+    <ul class="term-list">
+      <li><span class="hl">Concepts considered</span>: cat (too complex), potted plant (weak theme)</li>
+      <li><span class="hl">Final concept</span>: Animal Crossing leaf logo + name text</li>
+      <li><span class="hl">Design type</span>: LED letterbox &mdash; hollow sign with internal lighting</li>
+    </ul>
+
+  </div>
+</section>
+
+<!-- ============================================================
+     SECTION 2 :: SKETCHING
+     ============================================================ -->
+<section id="sketching">
+  <div class="section-header">
+    <span class="section-number">#002</span>
+    <h2>Sketching</h2>
+    <span class="timeline-dot"></span>
+  </div>
+  <div class="section-body">
+
+    <div class="text-block">
+      <p>
+        <strong>Phase:</strong> Moving from idea to digital sketch. I searched
+        online for a Fusion 360 tutorial that fit what I needed to build. I
+        followed a Fusion 360 tutorial to sketch and model the design &mdash;
+        tutorial link: <em>[link to be provided]</em>.
+      </p>
+    </div>
+
+    <div class="grid-2">
+      <div class="img-trigger" data-fig="FIG 2.1" data-caption="Fusion 360 workspace" data-img-src="2" data-placeholder="fusion-workspace.jpg">
+        <span class="trigger-icon">▶</span>
+        <span class="trigger-label"><strong>FIG 2.1</strong> &mdash; Fusion 360 workspace</span>
+        <span class="trigger-action">[open window]</span>
+      </div>
+      <div class="img-trigger" data-fig="FIG 2.2" data-caption="Early sketch attempt" data-img-src="3" data-placeholder="sketch-attempt.jpg">
+        <span class="trigger-icon">▶</span>
+        <span class="trigger-label"><strong>FIG 2.2</strong> &mdash; Early sketch attempt</span>
+        <span class="trigger-action">[open window]</span>
+      </div>
+    </div>
+
+    <div class="text-block">
+      <p>
+        Getting the sketch right was a bit tricky at first. I hadn't used Fusion
+        360 in a while, so I had to re-learn the basics. There was some
+        troubleshooting involved &mdash; getting the dimensions right, making
+        sure the text and leaf shape lined up properly, and figuring out how to
+        make the letters hollow for the LED lights to shine through.
+      </p>
+    </div>
+
+    <ul class="term-list">
+      <li><span class="hl">Finding the right tutorial</span> — searched for a Fusion 360 letterbox guide</li>
+      <li><span class="hl">Re-learning curve</span> — had to get familiar with the program again</li>
+      <li><span class="hl">Troubleshooting</span> — fixing alignment and hollowing out the text</li>
+    </ul>
+
+  </div>
+</section>
+
+<!-- ============================================================
+     SECTION 3 :: DESIGNING
+     ============================================================ -->
+<section id="designing">
+  <div class="section-header">
+    <span class="section-number">#003</span>
+    <h2>Designing</h2>
+    <span class="timeline-dot"></span>
+  </div>
+  <div class="section-body">
+
+    <div class="text-block">
+      <p>
+        <strong>Phase:</strong> Taking the sketches into 3D in Fusion 360. Once
+        the sketches were done, it was smooth sailing — I was able to simply
+        extrude them into solid geometry. The real struggle came when I tried
+        to make the words hollow for the LED lights to shine through.
+      </p>
+    </div>
+
+    <div class="grid-3">
+      <div class="img-trigger" data-fig="FIG 3.1" data-caption="Extruded base" data-img-src="4" data-placeholder="cad-front.png">
+        <span class="trigger-icon">▶</span>
+        <span class="trigger-label"><strong>FIG 3.1</strong> &mdash; Extruded base</span>
+        <span class="trigger-action">[open window]</span>
+      </div>
+      <div class="img-trigger" data-fig="FIG 3.2" data-caption="Hollow letters" data-img-src="5" data-placeholder="cad-side.png">
+        <span class="trigger-icon">▶</span>
+        <span class="trigger-label"><strong>FIG 3.2</strong> &mdash; Hollow letters</span>
+        <span class="trigger-action">[open window]</span>
+      </div>
+      <div class="img-trigger" data-fig="FIG 3.3" data-caption="Final assembly" data-img-src="6" data-placeholder="cad-isometric.png">
+        <span class="trigger-icon">▶</span>
+        <span class="trigger-label"><strong>FIG 3.3</strong> &mdash; Final assembly</span>
+        <span class="trigger-action">[open window]</span>
+      </div>
+    </div>
+
+    <!-- EDIT BELOW: Example editable spec block -->
+    <div class="cmd-block">
+      <span class="cmt"># design log — phase 3</span><br />
+      <span class="prompt">root@letterbox:~$</span> cat phase3-log.txt<br />
+      <span class="out">[OK] Sketches extruded successfully<br />
+        [FAIL] Words not hollow — hubris blocked the tutorial<br />
+        [FIX] Followed tutorial, got text hollowing working<br />
+        [WARN] Had to redo 2 sketches — geometry didn't behave<br />
+        [DONE] Base, caps, and LED holes complete</span><br />
+      <span class="prompt">root@letterbox:~$</span> <span class="out">_</span>
+    </div>
+    <!-- EDIT ABOVE -->
+
+    <div class="text-block">
+      <p>
+        Extruding the sketches was straightforward — just a simple pull into
+        3D. But hollowing out the words took some trial and error. I tried
+        doing it my own way at first, but after a few failed attempts I
+        relented and followed the tutorial step by step. That did the trick.
+        I also had to remake a couple of sketches that didn't behave as
+        expected during extrusion. In the end I managed to model the base,
+        the caps, and the holes for the LED lights.
+      </p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================
+     SECTION 4 :: DETAILS
+     ============================================================ -->
+<section id="details">
+  <div class="section-header">
+    <span class="section-number">#004</span>
+    <h2>Details</h2>
+    <span class="timeline-dot"></span>
+  </div>
+  <div class="section-body">
+
+    <div class="text-block">
+      <p>
+        <strong>Phase:</strong> Sending the model to Bamboo Lab's slicer for a
+        preview of how it would 3D print. The preview revealed that some parts
+        weren't printing correctly — overhangs that would sag, thin walls that
+        looked fragile, and geometry that didn't translate well to layers.
+      </p>
+    </div>
+
+    <div class="img-trigger" data-fig="FIG 4.1" data-caption="Bamboo Lab slicer preview" data-img-src="7" data-placeholder="slicer-preview.jpg">
+      <span class="trigger-icon">▶</span>
+      <span class="trigger-label"><strong>FIG 4.1</strong> &mdash; Bamboo Lab slicer preview</span>
+      <span class="trigger-action">[open window]</span>
+    </div>
+
+    <ul class="term-list">
+      <li><span class="hl">Bamboo Lab preview</span> — caught printing issues early</li>
+      <li><span class="hl">Fixed geometry</span> — went back and adjusted problem areas</li>
+      <li><span class="hl">Wrong file format</span> — exported to the wrong type, had to re-export</li>
+    </ul>
+
+    <div class="text-block">
+      <p>
+        I ran the model through Bamboo Lab's slicer to get a preview of the
+        print. Sure enough, some parts were flagged — overhangs that wouldn't
+        hold up, sections that were too thin. I had to go back to Fusion 360
+        and make adjustments. On top of that, I initially exported to the wrong
+        file format, which the slicer couldn't read properly. A quick re-export
+        fixed it and the model was finally compatible.
+      </p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================
+     SECTION 5 :: REVISIONING
+     ============================================================ -->
+<section id="revisioning">
+  <div class="section-header">
+    <span class="section-number">#005</span>
+    <h2>Revisioning</h2>
+    <span class="timeline-dot"></span>
+  </div>
+  <div class="section-body">
+
+    <div class="text-block">
+      <p>
+        <strong>Phase:</strong> Designing this very website. I wanted to
+        document the whole process, so I set out to build a site for the
+        project. I originally wanted an <em>Animal Crossing</em> theme —
+        pastels, rounded corners, cute icons — but it felt too complex or just
+        wasn't coming together well. I scrapped it and went with the terminal
+        theme you see now.
+      </p>
+    </div>
+
+    <div class="grid-2">
+      <div class="img-trigger" data-fig="FIG 5.1" data-caption="Animal Crossing theme attempt" data-img-src="8" data-placeholder="ac-theme.jpg">
+        <span class="trigger-icon">▶</span>
+        <span class="trigger-label"><strong>FIG 5.1</strong> &mdash; Animal Crossing theme attempt</span>
+        <span class="trigger-action">[open window]</span>
+      </div>
+      <div class="img-trigger" data-fig="FIG 5.2" data-caption="Final terminal theme" data-img-src="9" data-placeholder="terminal-theme.jpg">
+        <span class="trigger-icon">▶</span>
+        <span class="trigger-label"><strong>FIG 5.2</strong> &mdash; Final terminal theme</span>
+        <span class="trigger-action">[open window]</span>
+      </div>
+    </div>
+
+    <div class="cmd-block">
+      <span class="cmt"># website build log</span><br />
+      <span class="prompt">root@letterbox:~$</span> cat build-log.txt<br />
+      <span class="out">[INFO] Tried multiple platforms — none worked properly<br />
+        [INFO] OpenCode suggested — finally a tool that clicked<br />
+        [WARN] Animal Crossing theme abandoned — too complex<br />
+        [DONE] Terminal theme — clean, functional, fits the vibe</span><br />
+      <span class="prompt">root@letterbox:~$</span> <span class="out">_</span>
+    </div>
+
+    <div class="text-block">
+      <p>
+        I explored a bunch of different methods and platforms to build this
+        site, but none of them worked the way I wanted. Eventually someone
+        suggested I try <em>OpenCode</em>, and that finally did the trick. As
+        for the look — I really wanted an Animal Crossing aesthetic at first,
+        but it was either too complicated to pull off or just didn't look good
+        enough. I switched to the terminal theme and it felt right immediately.
+      </p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================
+     SECTION 6 :: REFLECTION (The "Printing" step)
+     ============================================================ -->
+<section id="reflection">
+  <div class="section-header">
+    <span class="section-number">#006</span>
+    <h2>Reflection</h2>
+    <span class="timeline-dot"></span>
+  </div>
+  <div class="section-body">
+
+    <div class="text-block">
+      <p>
+        <strong>Phase:</strong> Looking back at the whole process — what
+        worked, what didn't, and what I'd do differently next time.
+      </p>
+    </div>
+
+    <div class="img-trigger" data-fig="FIG 6.1" data-caption="The final product — design complete" data-img-src="10" data-placeholder="reflection-final.jpg">
+      <span class="trigger-icon">▶</span>
+      <span class="trigger-label"><strong>FIG 6.1</strong> &mdash; The final product — design complete</span>
+      <span class="trigger-action">[open window]</span>
+    </div>
+
+    <div class="cmd-block">
+      <span class="cmt"># retrospective analysis</span><br />
+      <span class="prompt">root@letterbox:~$</span> ./reflect.sh<br />
+      <span class="out">[OK]   Hubris tamed — followed the tutorial and it worked<br />
+        [OK]   Relearned Fusion 360 — stuck to the formula<br />
+        [WARN] Still leaving things for the last minute<br />
+        [WARN] Could have saved time by asking for help earlier<br />
+        [INFO] Alternative paths are fine, but not at the cost of efficiency<br />
+        [INFO] Next project: start early, follow instructions, iterate fast</span><br />
+      <span class="prompt">root@letterbox:~$</span> <span class="out">_</span>
+    </div>
+
+    <div class="text-block">
+      <p>
+        The biggest lesson from this project was learning to stop letting my
+        <em>hubris</em> get the best of me. I kept trying to deviate from the
+        formula, thinking I could find a faster or better way, but it only
+        cost me time. Once I followed the tutorial by the book, everything
+        clicked. I also relearned Fusion 360 along the way — muscle memory
+        came back, but more importantly I learned to trust the process instead
+        of chasing clever shortcuts.
+      </p>
+      <p>
+        Another thing I need to work on is <strong>procrastination</strong>.
+        I left a lot of this work for the last minute, which created unnecessary
+        stress and almost resulted in missing pieces. Going forward, I want to
+        start projects earlier and chip away at them consistently rather than
+        cramming at the end. Sometimes the simplest path really is the most
+        efficient one — and there's no shame in taking it.
+      </p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer class="footer">
+  LETTERBOX :: DESIGN LOG &nbsp;|&nbsp; ROOT: ~/projects/letterbox &nbsp;|&nbsp;
+  STATUS: <span style="color:var(--accent)">COMPLETE</span>
+  <span class="cursor-blink">_</span>
+  <br />
+  <span style="opacity:0.4;">Built with HTML/CSS/JS &mdash; last updated 2025</span>
+</footer>
+
+<!-- ============================================================
+     JAVASCRIPT
+     ============================================================ -->
+<script>
+  (function() {
+    'use strict';
+
+    /* ----------------------------------------------------------
+       SCROLL-REVEAL: fade sections in as they enter viewport
+       ---------------------------------------------------------- */
+    const sections = document.querySelectorAll('section');
+    const dotLinks = document.querySelectorAll('.progress-track a');
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.15 });
+
+    sections.forEach(s => observer.observe(s));
+
+    /* ----------------------------------------------------------
+       SIDE DOT NAV — highlight active section
+       ---------------------------------------------------------- */
+    const sectionIds = Array.from(sections).map(s => s.id);
+
+    function updateDots() {
+      const scrollY = window.scrollY + window.innerHeight * 0.3;
+
+      let activeId = sectionIds[0];
+      for (const id of sectionIds) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        if (scrollY >= el.offsetTop) {
+          activeId = id;
+        }
+      }
+
+      dotLinks.forEach(a => {
+        const sec = a.getAttribute('data-section');
+        a.classList.toggle('active', sec === activeId);
+      });
+    }
+
+      window.addEventListener('scroll', updateDots, { passive: true });
+      window.addEventListener('resize', updateDots, { passive: true });
+      updateDots();
+
+    /* ----------------------------------------------------------
+       SMOOTH SCROLL FOR DOT NAV
+       ---------------------------------------------------------- */
+    dotLinks.forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        const target = document.querySelector(a.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth' });
+        }
+      });
+    });
+
+    /* ----------------------------------------------------------
+       PARALLAX GLITCH ON HERO (subtle mouse tracking)
+       ---------------------------------------------------------- */
+    const hero = document.querySelector('.hero');
+    if (hero) {
+      hero.addEventListener('mousemove', e => {
+        const x = (e.clientX / window.innerWidth - 0.5) * 6;
+        const y = (e.clientY / window.innerHeight - 0.5) * 6;
+        hero.style.setProperty('--shift-x', x + 'px');
+        hero.style.setProperty('--shift-y', y + 'px');
+        hero.querySelector('h1').style.transform =
+          'translate(' + x * 0.5 + 'px, ' + y * 0.5 + 'px)';
+      });
+    }
+
+    /* ----------------------------------------------------------
+       KEYBOARD easter egg: type "letterbox" to trigger effect
+       ---------------------------------------------------------- */
+    let typed = '';
+    document.addEventListener('keydown', e => {
+      typed += e.key.toLowerCase();
+      typed = typed.slice(-9);
+      if (typed === 'letterbox') {
+        document.body.style.transition = 'background 0.1s';
+        document.body.style.background = '#001a00';
+        setTimeout(() => { document.body.style.background = ''; }, 200);
+        typed = '';
+      }
+    });
+
+    console.log(
+      '%c LETTERBOX // DESIGN LOG ',
+      'background:#00ff41;color:#000;font-size:16px;font-weight:bold;padding:4px;'
+    );
+    console.log(
+      '%c Terminal loaded. Scroll to explore sections. ',
+      'color:#4a6a4a;font-size:12px;'
+    );
+
+    /* ----------------------------------------------------------
+       FLOATING WINDOW SYSTEM — draggable, zoomable image windows
+       ---------------------------------------------------------- */
+    (function() {
+      let winZIndex = 5000;
+      const windows = {};
+
+      function openWindow(config) {
+        const id = config.id || 'win-' + Date.now();
+
+        // Prevent duplicates
+        if (windows[id]) {
+          focusWindow(id);
+          return;
+        }
+
+        const el = document.createElement('div');
+        el.className = 'window';
+        el.dataset.id = id;
+
+        const header = document.createElement('div');
+        header.className = 'window-header';
+        header.innerHTML =
+          '<span class="win-title"><span class="hl">' +
+          esc(config.fig) +
+          '</span> ' +
+          esc(config.caption) +
+          '</span>' +
+          '<div class="window-controls">' +
+          '<span class="win-zoom" title="Toggle zoom"></span>' +
+          '<span class="win-close" title="Close window"></span>' +
+          '</div>';
+
+        const content = document.createElement('div');
+        content.className = 'window-content';
+
+        if (config.imgSrc && config.imgSrc.trim()) {
+          const img = document.createElement('img');
+          img.src = config.imgSrc;
+          img.alt = config.caption;
+          img.draggable = false;
+
+          img.addEventListener('click', function() {
+            this.classList.toggle('zoomed');
+          });
+
+          content.appendChild(img);
+        } else {
+          const ph = document.createElement('div');
+          ph.className = 'win-placeholder';
+          ph.innerHTML =
+            esc(config.placeholder || 'image') +
+            '<br><span style="font-size:10px;opacity:0.6;">Click trigger to open</span>';
+          content.appendChild(ph);
+        }
+
+        el.appendChild(header);
+        el.appendChild(content);
+        document.body.appendChild(el);
+
+        // Position with cascade offset
+        const count = Object.keys(windows).length;
+        const left = Math.min(60 + count * 28, window.innerWidth - 360);
+        const top = Math.min(80 + count * 28, window.innerHeight - 260);
+        el.style.left = left + 'px';
+        el.style.top = top + 'px';
+        el.style.width = (config.width || 420) + 'px';
+
+        // Focus on click
+        el.addEventListener('mousedown', function() {
+          focusWindow(id);
+        });
+
+        // Close button
+        header.querySelector('.win-close').addEventListener('click', function(e) {
+          e.stopPropagation();
+          closeWindow(id);
+        });
+
+        // Zoom button
+        header.querySelector('.win-zoom').addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleZoom(id);
+        });
+
+        // Drag by header
+        let dragData = null;
+        header.addEventListener('mousedown', function(e) {
+          if (e.target.closest('.window-controls')) return;
+          dragData = {
+            offsetX: e.clientX - el.offsetLeft,
+            offsetY: e.clientY - el.offsetTop
+          };
+          focusWindow(id);
+        });
+
+        function onMove(e) {
+          if (!dragData) return;
+          const maxX = window.innerWidth - el.offsetWidth;
+          const maxY = window.innerHeight - el.offsetHeight;
+          el.style.left = Math.max(0, Math.min(maxX, e.clientX - dragData.offsetX)) + 'px';
+          el.style.top = Math.max(0, Math.min(maxY, e.clientY - dragData.offsetY)) + 'px';
+        }
+
+        function onUp() {
+          dragData = null;
+        }
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+
+        // Show and focus
+        el.classList.add('active');
+        focusWindow(id);
+
+        windows[id] = {
+          el: el,
+          config: config,
+          zoomed: false,
+          cleanup: function() {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+          }
+        };
+      }
+
+      function focusWindow(id) {
+        winZIndex++;
+        const w = windows[id];
+        if (!w) return;
+        w.el.style.zIndex = winZIndex;
+        for (const key in windows) {
+          windows[key].el.classList.toggle('focused', key === id);
+        }
+      }
+
+      function closeWindow(id) {
+        const w = windows[id];
+        if (!w) return;
+        if (w.cleanup) w.cleanup();
+        w.el.remove();
+        delete windows[id];
+      }
+
+      function toggleZoom(id) {
+        const w = windows[id];
+        if (!w) return;
+        w.zoomed = !w.zoomed;
+        const img = w.el.querySelector('.window-content img');
+        if (img) {
+          img.classList.toggle('zoomed', w.zoomed);
+        }
+      }
+
+      function esc(str) {
+        const d = document.createElement('div');
+        d.textContent = str;
+        return d.innerHTML;
+      }
+
+      // Bind triggers
+      document.querySelectorAll('.img-trigger').forEach(function(el) {
+        el.addEventListener('click', function() {
+          const fig = el.getAttribute('data-fig') || '';
+          const caption = el.getAttribute('data-caption') || '';
+          const imgId = el.getAttribute('data-img-src') || '';
+          const placeholder = el.getAttribute('data-placeholder') || 'image';
+          var imgSrc = '';
+          if (imgId && /^\d+$/.test(imgId)) {
+            imgSrc = 'letterbox/' + imgId + '.jpg';
+          } else {
+            imgSrc = imgId;
+          }
+          openWindow({
+            fig: fig,
+            caption: caption,
+            imgSrc: imgSrc,
+            placeholder: placeholder,
+            id: 'win-' + (fig || Math.random().toString(36).slice(2))
+          });
+        });
+      });
+    })();
+
+  })();
+</script>
+
+</body>
+</html>
